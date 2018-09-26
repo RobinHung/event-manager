@@ -3,29 +3,15 @@ api_version: 1
 threadsafe: false
 
 handlers:
-  # - url: /(index.html){0,1}
-  #   static_files: index.html
-  #   upload: index.html
-
-  # - url: /
-  #   static_files: index.html
-  #   upload: index.html
-
   - url: /
     script: webapp.app
     secure: always
-
-  # - url: /loginpage
-  #   static_files: login.html
-  #   upload: login.html
 
   - url: /loginpage
     script: webapp.app
     secure: always
 
   - url: /registration
-    # static_files: registration.html
-    # upload: registration.html
     script: webapp.app
     secure: always
 
@@ -48,3 +34,7 @@ handlers:
   - url: /.*
     script: webapp.app
     secure: always
+
+libraries:
+  - name: jinja2
+    version: latest

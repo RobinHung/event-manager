@@ -7,6 +7,29 @@ from google.appengine.ext import ndb
 from lib.bcrypt import bcrypt
 from datetime import datetime
 from datetime import timedelta
+import jinja2
+import os
+
+
+JINJA_ENVIRONMENT = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
+    extensions=['jinja2.ext.autoescape'],
+    autoescape=True)
+
+
+class Secret(ndb.Model):
+    name = ndb.StringProperty()
+    value = ndb.StringProperty()
+
+
+class Init(webapp2.RequestHandler):
+    @ndb.transactional
+    def get(self):
+        key = ndb.Key(Secret, "oidc_client")
+        if key.get():
+            return self.response.write("Already exists")
+        Secret(key=key, name=key.id(), value="").put()
+        self.response.write("Success")
 
 
 class ModelEvent(ndb.Model):
@@ -231,7 +254,18 @@ class Home(webapp2.RequestHandler):
 
 class DisplayLogin(webapp2.RequestHandler):
     def get(self):
-        self.response.write(open("login.html").read())
+        theState = str(uuid.uuid4())
+        self.response.set_cookie("state", theState)
+        # self.response.write(open("login.html").read())
+
+        theNonce = str(uuid.uuid4())
+
+        template_values = {
+            'state': theState,
+            'nonce': theNonce
+        }
+        template = JINJA_ENVIRONMENT.get_template('login.html')
+        self.response.write(template.render(template_values))
 
 
 class DisplayRegistration(webapp2.RequestHandler):
@@ -250,5 +284,6 @@ app = webapp2.WSGIApplication([
     ('/login', Login),
     ('/redirect', Redirect),
     ('/logout', Logout),
-    ('/migrate', Migration)
+    ('/migrate', Migration),
+    ('/init', Init)
 ], debug=True)
