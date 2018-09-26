@@ -9,6 +9,9 @@ from datetime import datetime
 from datetime import timedelta
 import jinja2
 import os
+from google.appengine.api import urlfetch
+import urllib
+import base64
 
 
 JINJA_ENVIRONMENT = jinja2.Environment(
@@ -273,6 +276,77 @@ class DisplayRegistration(webapp2.RequestHandler):
         self.response.write(open("registration.html").read())
 
 
+class OidcAuth(webapp2.RequestHandler):
+    def get(self):
+        # `status` and `code` from the url
+        theCode = self.request.params['code']
+        theState = self.request.params['state']
+
+        # Cookie state
+        current_state = self.request.cookies.get("state")
+
+        # Client secret got from the datastore
+        client_secret = ndb.Key(Secret, "oidc_client").get().value
+
+        if (theState != current_state):
+            self.response.write("State does NOT match!!!")
+        else:
+            headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+            request_params = {
+                "code": theCode,
+                "client_id": "625404489207-0iodv0kr884meqn2fn2961702u93usut.apps.googleusercontent.com",
+                "client_secret": client_secret,
+                "redirect_uri": 'https://robinhung-03.appspot.com/oidcauth',
+                "grant_type": "authorization_code"
+            }
+            form_data = urllib.urlencode(request_params)
+            # url="https://oauth2.googleapis.com/token"
+            result = urlfetch.fetch(
+                url="https://www.googleapis.com/oauth2/v4/token",
+                payload=form_data,
+                method=urlfetch.POST,
+                headers=headers
+            )
+
+            jwt = result.content
+            jwt_string = json.loads(jwt)
+            # self.response.write(jwt_string)
+            # self.response.write(jwt_string['id_token'])
+
+            _, body, _ = jwt_string['id_token'].split('.')
+            while len(body) % 4:
+                body += '='
+            # claims = json.loads(body)
+            claims = base64.b64decode(body)
+            cc = json.loads(claims)
+
+            # self.response.write(cc['email'])
+            user_email = cc['email']
+            user_password = cc['sub']
+
+            rUser = RegisteredUser(
+                key=ndb.Key("RegisteredUser", user_email),
+                username=user_email,
+                hashedPassword=bcrypt.hashpw(user_password, bcrypt.gensalt()))
+            rUser.put()
+
+            tok = str(uuid.uuid4())
+            exp = datetime.now() + timedelta(hours=1)
+            session = Session(
+                key=ndb.Key("Session", tok),
+                token=tok,
+                username=user_email,
+                expiration=exp
+            )
+            session.put()
+            # print "session update in db"
+
+            self.response.set_cookie("s", tok)
+            # print "cookie set!!!"
+
+            self.redirect('/')
+
+
 app = webapp2.WSGIApplication([
     ('/', Home),
     ('/events', ListEvents),
@@ -285,5 +359,6 @@ app = webapp2.WSGIApplication([
     ('/redirect', Redirect),
     ('/logout', Logout),
     ('/migrate', Migration),
-    ('/init', Init)
+    ('/init', Init),
+    ('/oidcauth', OidcAuth)
 ], debug=True)
