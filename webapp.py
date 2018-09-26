@@ -214,19 +214,8 @@ class Migration(webapp2.RequestHandler):
         session = ndb.Key("Session", tok).get()
         current_username = session.username
         user = ndb.Key("RegisteredUser", current_username).get()
-        # print current_username
-        # print session
-        # print session.key
-        # print user
-        # print user.key
 
         for event in ModelEvent.query(ancestor=_root_key).order(-ModelEvent.date).fetch():
-            # print event
-            # print event.key
-            # if event.key == _root_key:
-            #     migrated_event = ModelEvent(
-            #         parent=user.key, name=event.name, date=event.date)
-            #     migrated_event.put()
             migrated_event = ModelEvent(
                 parent=user.key, name=event.name, date=event.date)
             migrated_event.put()
@@ -300,7 +289,6 @@ class OidcAuth(webapp2.RequestHandler):
                 "grant_type": "authorization_code"
             }
             form_data = urllib.urlencode(request_params)
-            # url="https://oauth2.googleapis.com/token"
             result = urlfetch.fetch(
                 url="https://www.googleapis.com/oauth2/v4/token",
                 payload=form_data,
@@ -310,17 +298,13 @@ class OidcAuth(webapp2.RequestHandler):
 
             jwt = result.content
             jwt_string = json.loads(jwt)
-            # self.response.write(jwt_string)
-            # self.response.write(jwt_string['id_token'])
 
             _, body, _ = jwt_string['id_token'].split('.')
             while len(body) % 4:
                 body += '='
-            # claims = json.loads(body)
             claims = base64.b64decode(body)
             cc = json.loads(claims)
 
-            # self.response.write(cc['email'])
             user_email = cc['email']
             user_password = cc['sub']
 
@@ -339,10 +323,8 @@ class OidcAuth(webapp2.RequestHandler):
                 expiration=exp
             )
             session.put()
-            # print "session update in db"
 
             self.response.set_cookie("s", tok)
-            # print "cookie set!!!"
 
             self.redirect('/')
 
