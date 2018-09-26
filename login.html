@@ -1,0 +1,73 @@
+<html>
+
+<head>
+    <title>Login</title>
+
+    <script>
+        // document.getElementById('loginButton').addEventListener('click', redirectToMain);
+
+        function reqJSON(method, path, data) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open(method, path, true);
+                xhr.setRequestHeader('Content-type', 'application/json');
+                xhr.responseType = 'json';
+                function resp() {
+                    return {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        data: xhr.response,
+                    };
+                };
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        if (xhr.response.redirect_url !== undefined) {
+                            window.location.replace(xhr.response.redirect_url);
+                        } else {
+                            alert(xhr.response.status);
+                        }
+                        // resolve(resp());
+                    } else {
+                        alert(xhr.response.status);
+                        // reject(resp());
+                    }
+                };
+                xhr.onerror = () => {
+                    alert(xhr.response.status);
+                    // reject(resp());
+                };
+                xhr.send(JSON.stringify(data))
+            });
+        }
+
+        function loginUser() {
+            reqJSON("POST", "/login", {
+                username: document.getElementById("loginUsername").value,
+                password: document.getElementById("loginPassword").value,
+            });
+        }
+
+        async function redirectUser() {
+            await reqJSON("GET", "/redirect");
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // document.getElementById('loginButton').addEventListener('click', loginUser);
+            document.getElementById('redirectButton').addEventListener('click', redirectUser);
+        });
+    </script>
+</head>
+
+<body>
+    <form id="loginForm">
+        Username: <input type="text" id="loginUsername">
+        Password: <input type="password" id="loginPassword">
+        <button id="loginButton" onclick="loginUser('/login', 'loginForm')">Login</button>
+    </form>
+    <br>
+    Not having an account? Click <a href="/registration">here</a> to register!
+
+    <button id="redirectButton">Redirect</button>
+</body>
+
+</html>

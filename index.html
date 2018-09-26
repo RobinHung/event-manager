@@ -1,0 +1,250 @@
+<html>
+
+<head>
+    <title>Events</title>
+    <style>
+        .eventName {
+        font-size: 2em;
+        font-weight: bold;
+      }
+      .eventDate {
+        font-size: 2em;
+        font-weight: bold;
+      }
+      .timer {
+        font-size: 2em;
+        font-weight: bold;
+        color: #558;
+      }
+    </style>
+    <!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.js"></script> -->
+    <script>
+        function reqJSON(method, path, data) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open(method, path, true);
+                xhr.setRequestHeader('Content-type', 'application/json');
+                xhr.responseType = 'json';
+                function resp() {
+                    return {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        data: xhr.response,
+                    };
+                };
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(resp());
+                    } else {
+                        console.error('xhr with error:', xhr);
+                        reject(resp());
+                    }
+                };
+                xhr.onerror = () => {
+                    console.error('xhr with error:', xhr);
+                    reject(resp());
+                };
+                xhr.send(JSON.stringify(data))
+            });
+        }
+
+        // Delete the event by the given key. Makes a DELETE request to /event.
+        async function delEvent(key) {
+            await reqJSON("DELETE", `/event/${key}`);
+            await getEvents();
+        }
+
+        // Get events using GET /events. Render in the page.
+        async function getEvents() {
+            let { data } = await reqJSON("GET", "/events");
+            renderEvents(data.events);
+        }
+
+        // Create a new event using the nameInput and dateInput form elements.
+        // Issues a POST /event request.
+        async function createEvent() {
+            await reqJSON("POST", "/event", {
+                name: document.getElementById("nameInput").value,
+                date: document.getElementById("dateInput").value,
+            });
+            await getEvents();
+        }
+
+        // Render the events in the page.
+        function renderEvents(events) {
+            const ediv = document.getElementById('events');
+            ediv.innerHTML = '';  // clear contents
+            eventLines = [];
+            for (let event of events || []) {
+                if (isPast(event.date)) {
+                    console.log(`Date ${event.date} is in the past. Skipping`);
+                    continue;
+                }
+                eventLines.push(
+                    `<div class="event" key="${event.id}">
+                <span class="eventName">${event.name}:</span>
+                <span class="eventDate">${event.date}:</span>
+                <span class="timer" date="${event.date}"></span>
+                <button onclick="delEvent(this.parentNode.getAttribute('key'))">delete</button>
+            </div>`);
+            }
+            ediv.innerHTML = eventLines.join('\n');
+            renderTimers();
+        }
+
+        // Returns whether date (or a YYYY-MM-DD string date) is in the past.
+        function isPast(dateOrStr) {
+            const date = (typeof dateOrStr === 'string') ? parseDate(dateOrStr) : dateOrStr;
+            return date - new Date() < 0;
+        }
+
+        // Parses a YYYY-MM-DD date into a Date object.
+        function parseDate(dstr) {
+            const pieces = dstr.split('-');
+            return new Date(pieces[0], pieces[1] - 1, pieces[2]);
+        }
+
+        // Creates a human-friendly countdown string from a given date. Can have
+        // days:hours:minutes:seconds, where each element is of the form %02d, and
+        // leading zero values are omitted (thus you can have just 23:15 if
+        // you're 23 minutes away from an event).
+        function countdownStringTo(date) {
+            let secs = Math.floor((+date - new Date()) / 1000);
+            if (secs < 0) {
+                return null;
+            }
+            let mins = Math.floor(secs / 60);
+            secs %= 60;
+
+            let hours = Math.floor(mins / 60);
+            mins %= 60;
+
+            let days = Math.floor(hours / 24);
+            hours %= 24;
+
+            let units = [days, hours, mins, secs];
+            while (units.length > 0 && units[0] === 0) {
+                units.shift();
+            }
+            return units.map(u => (u < 10 ? '0' : '') + u).join(':');
+        }
+
+        // Displays a countdown value in the given element, using the
+        // element's 'date' attribute compared with now.
+        function renderTimer(el, now) {
+            now = now || new Date();
+            const date = parseDate(el.getAttribute('date'));
+            const countdown = countdownStringTo(date);
+            if (countdown == null) {
+                return false;
+            }
+            el.innerText = countdown;
+            return true;
+        }
+
+        // Updates and displays all countdowns on the page.
+        function renderTimers() {
+            const spans = document.querySelectorAll('span.timer');
+            const now = new Date();
+            for (let el of spans) {
+                if (isPast(el.getAttribute('date'))) {
+                    // Stop displaying stuff that's in the past.
+                    el.parentNode.style.display = 'none';
+                    continue;
+                }
+                renderTimer(el, now);
+            }
+        }
+
+        async function logout() {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", "/logout");
+                xhr.setRequestHeader('Content-type', 'application/json');
+                xhr.responseType = 'json';
+                function resp() {
+                    return {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        data: xhr.response,
+                    };
+                };
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        if (xhr.response.redirect_url !== undefined) {
+                            window.location.replace(xhr.response.redirect_url);
+                        }
+                        resolve(resp());
+                    } else {
+                        console.error('xhr with error:', xhr);
+                        reject(resp());
+                    }
+                };
+                xhr.onerror = () => {
+                    console.error('xhr with error:', xhr);
+                    reject(resp());
+                };
+                xhr.send();
+            });
+        }
+
+        function dataMigration() {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", "/migrate");
+                xhr.setRequestHeader('Content-type', 'application/json');
+                xhr.responseType = 'json';
+                function resp() {
+                    return {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        data: xhr.response,
+                    };
+                };
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        if (xhr.response.redirect_url !== undefined) {
+                            window.location.replace(xhr.response.redirect_url);
+                        }
+                        resolve(resp());
+                    } else {
+                        console.error('xhr with error:', xhr);
+                        reject(resp());
+                    }
+                };
+                xhr.onerror = () => {
+                    console.error('xhr with error:', xhr);
+                    reject(resp());
+                };
+                xhr.send();
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('createButton').addEventListener('click', createEvent);
+            getEvents();
+            // Make sure countdowns are updated every second.
+            setInterval(renderTimers, 1000);
+
+            document.getElementById('logoutUser').addEventListener('click', logout);
+            document.getElementById('migrationButton').addEventListener('click', dataMigration)
+        });
+    </script>
+</head>
+
+<body>
+    <div id="events"></div>
+    <form>
+        Event name: <input type="text" id="nameInput"> date: <input type="text" id="dateInput">
+    </form>
+    <button id="createButton">create</button>
+
+    <p></p>
+    <button id="logoutUser">Logout</button>
+    <!-- <button onclick="logoutUser('/logout')">Logout</button> -->
+
+    <button id="migrationButton">Data Migration</button>
+</body>
+
+</html>
