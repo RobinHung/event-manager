@@ -19,6 +19,8 @@ JINJA_ENVIRONMENT = jinja2.Environment(
     extensions=['jinja2.ext.autoescape'],
     autoescape=True)
 
+theNonce = str(uuid.uuid4())
+
 
 class Secret(ndb.Model):
     name = ndb.StringProperty()
@@ -250,7 +252,7 @@ class DisplayLogin(webapp2.RequestHandler):
         self.response.set_cookie("state", theState)
         # self.response.write(open("login.html").read())
 
-        theNonce = str(uuid.uuid4())
+        # theNonce = str(uuid.uuid4())
 
         template_values = {
             'state': theState,
@@ -297,6 +299,7 @@ class OidcAuth(webapp2.RequestHandler):
             )
 
             jwt = result.content
+            # self.response.write(jwt)
             jwt_string = json.loads(jwt)
 
             _, body, _ = jwt_string['id_token'].split('.')
@@ -308,25 +311,31 @@ class OidcAuth(webapp2.RequestHandler):
             user_email = cc['email']
             user_password = cc['sub']
 
-            rUser = RegisteredUser(
-                key=ndb.Key("RegisteredUser", user_email),
-                username=user_email,
-                hashedPassword=bcrypt.hashpw(user_password, bcrypt.gensalt()))
-            rUser.put()
+            # Check nonce
+            if cc['nonce'] != theNonce:
+                self.response.write("Nonce does NOT match!")
 
-            tok = str(uuid.uuid4())
-            exp = datetime.now() + timedelta(hours=1)
-            session = Session(
-                key=ndb.Key("Session", tok),
-                token=tok,
-                username=user_email,
-                expiration=exp
-            )
-            session.put()
+            else:
 
-            self.response.set_cookie("s", tok)
+                rUser = RegisteredUser(
+                    key=ndb.Key("RegisteredUser", user_email),
+                    username=user_email,
+                    hashedPassword=bcrypt.hashpw(user_password, bcrypt.gensalt()))
+                rUser.put()
 
-            self.redirect('/')
+                tok = str(uuid.uuid4())
+                exp = datetime.now() + timedelta(hours=1)
+                session = Session(
+                    key=ndb.Key("Session", tok),
+                    token=tok,
+                    username=user_email,
+                    expiration=exp
+                )
+                session.put()
+
+                self.response.set_cookie("s", tok)
+
+                self.redirect('/')
 
 
 app = webapp2.WSGIApplication([
